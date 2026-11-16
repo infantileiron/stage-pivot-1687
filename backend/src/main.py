@@ -9,6 +9,10 @@ from src.middlewares.request import RequestId,SecurityHeaders
 @asynccontextmanager
 async def lifespan(app):
  Base.metadata.create_all(engine)
+ try:
+  from src.services.migration import migrate_legacy
+  logging.info('legacy migration %s',migrate_legacy())
+ except Exception:logging.exception('legacy migration failed')
  if os.getenv('SEED_DEMO')=='true':
   try:
    from scripts.seed_demo import seed
@@ -23,7 +27,9 @@ def health():
  from sqlalchemy import text
  import redis
  with engine.connect() as c:c.execute(text('SELECT 1'))
- redis.Redis.from_url(os.environ['REDIS_URL']).ping()
+ url=os.environ['REDIS_URL']
+ if url.startswith('redis://') or url.startswith('rediss://') or url.startswith('unix://'):
+  redis.Redis.from_url(url).ping()
  return {'status':'ok'}
 @app.exception_handler(Exception)
 async def errors(request:Request,exc:Exception):
